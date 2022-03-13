@@ -84,6 +84,10 @@ typedef struct {
 
     // speculation
     SpecBits           spec_bits;
+
+`ifdef KONATA 
+    Bit#(64) u_id;
+`endif
 } ToReorderBuffer deriving(Bits, Eq, FShow);
 
 typedef enum {
@@ -210,6 +214,10 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
     Reg#(Bool)                                                      epochIncremented     <- mkRegU;
     Ehr#(3, SpecBits)                                               spec_bits            <- mkEhr(?);
 
+`ifdef KONATA 
+    Reg#(Bit#(64)) uid <- mkReg(?);
+`endif
+
     // wires to get stale (EHR port 0) values of PPC
     Wire#(Addr) predPcWire <- mkBypassWire;
     (* fire_when_enabled, no_implicit_conditions *)
@@ -265,7 +273,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
         doAssert(!(access_at_commit && non_mmio_st_done),
                  "cannot both be true");
         // update ROB state
-        if(non_mmio_st_done) begin
+        if (non_mmio_st_done) begin
             rob_inst_state[state_finishMem_port] <= Executed;
             doAssert(iType == St, "must be St");
         end
@@ -299,6 +307,9 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
 
     method Action write_enq(ToReorderBuffer x);
         pc <= x.pc;
+`ifdef KONATA 
+        uid <= x.u_id;
+`endif
         orig_inst <= x.orig_inst;
         iType <= x.iType;
         rg_dst_reg <= x.dst;
@@ -359,6 +370,9 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
             nonMMIOStDone: nonMMIOStDone[nonMMIOSt_deq_port],
             epochIncremented: epochIncremented,
             spec_bits: spec_bits[sb_deq_port]
+`ifdef KONATA 
+            , u_id: uid
+`endif
         };
     endmethod
 
@@ -529,6 +543,9 @@ module mkSupReorderBuffer#(
     // SupSize number of FIFOs
     Vector#(SupSize, Vector#(SingleScalarSize, ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum))) row <- replicateM(replicateM(mkRobRow));
     Vector#(SupSize, Vector#(SingleScalarSize, Ehr#(2, Bool))) valid <- replicateM(replicateM(mkEhr(False)));
+`ifdef KONATA 
+    Vector#(SupSize, Vector#(SingleScalarSize, Ehr#(2, Bit#(64)))) uid <- replicateM(replicateM(mkEhr(0)));
+`endif
     Vector#(SupSize, Reg#(SingleScalarPtr)) enqP <- replicateM(mkReg(0));
     Vector#(SupSize, Ehr#(2, SingleScalarPtr)) deqP_ehr <- replicateM(mkEhr(0));
     let deqP = getVEhrPort(deqP_ehr, 0);
@@ -595,6 +612,11 @@ module mkSupReorderBuffer#(
                 // move deqP & reset valid
                 deqP[i] <= getNextPtr(deqP[i]);
                 valid[i][deqP[i]][valid_deq_port] <= False;
+`ifdef KONATA 
+                let id = uid[i][deqP[i]][valid_deq_port];
+              $display("KONATAR\t%0d\t%0d\t0", id, id);
+              $fflush;
+`endif
             end
         end
         // update firstDeqWay: find the first deq port that is not enabled
@@ -628,6 +650,13 @@ module mkSupReorderBuffer#(
             for(Integer w = 0; w < valueof(SupSize); w = w+1) begin
                 for(Integer i = 0; i < valueof(SingleScalarSize); i = i+1) begin
                     valid[w][i][valid_wrongSpec_port] <= False;
+`ifdef KONATA 
+            if (valid[w][i][valid_wrongSpec_port]) begin
+              $display("KONATAE\t%0d\t0\tE", uid[w][i][valid_wrongSpec_port]);
+              $display("KONATAR\t%0d\t%0d\t1\t//KILLALLROB", uid[w][i][valid_wrongSpec_port], uid[w][i][valid_wrongSpec_port]);
+              $fflush;
+            end
+`endif
                 end
             end
             // reset all ptrs to 0
@@ -649,6 +678,14 @@ module mkSupReorderBuffer#(
                 for(Integer i = 0; i < valueof(SingleScalarSize); i = i+1) begin
                     if(row[w][i].dependsOn_wrongSpec(specTag)) begin
                         valid[w][i][valid_wrongSpec_port] <= False;
+
+`ifdef KONATA 
+            if (valid[w][i][valid_wrongSpec_port]) begin
+              $display("KONATAE\t%0d\t0\tE", uid[w][i][valid_wrongSpec_port]);
+              $display("KONATAR\t%0d\t%0d\t1\t//KILLMISPREDICTION", uid[w][i][valid_wrongSpec_port], uid[w][i][valid_wrongSpec_port]);
+              $fflush;
+            end
+`endif
                     end
                 end
             end
@@ -806,6 +843,9 @@ module mkSupReorderBuffer#(
                 enqP[i] <= getNextPtr(enqP[i]);
                 row[i][enqP[i]].write_enq(x);
                 valid[i][enqP[i]][valid_enq_port] <= True;
+`ifdef KONATA 
+                uid[i][enqP[i]][valid_enq_port] <= x.u_id;
+`endif
             end
         end
         // update firstEnqWay: find the first enq port that is not enabled

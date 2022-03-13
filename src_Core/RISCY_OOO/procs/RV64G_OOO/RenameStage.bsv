@@ -200,6 +200,12 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                     stop = True;
                 end
                 else begin
+`ifdef KONATA 
+              $display("KONATAE\t%d\t0\tRnm", x.u_id);
+              $display("KONATAL\t%0d\t0\tWrongPathRename %x", x.u_id, x.pc);
+              $display("KONATAR\t%d\t%d\t1\t//KILLRENAME", x.u_id, x.u_id);
+              $fflush;
+`endif
                     // wrong path, kill it & update prev epoch
                     fetchStage.pipelines[i].deq;
                     epochManager.updatePrevEpoch[i].update(x.main_epoch);
@@ -372,8 +378,17 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                                 nonMMIOStDone: False,
                                 epochIncremented: True, // we have incremented epoch
                                 spec_bits: specTagManager.currentSpecBits
+`ifdef KONATA 
+                                , u_id : x.u_id 
+`endif
                                };
         rob.enqPort[0].enq(y);
+
+`ifdef KONATA 
+              $display("KONATAE\t%d\t0\tRnm", x.u_id);
+              $display("KONATAS\t%d\t0\tE", x.u_id);
+              $fflush;
+`endif
         // record if we issue an interrupt
         if(firstTrap matches tagged Valid (tagged Interrupt .i)) begin
             inIfc.issueCsrInstOrInterrupt;
@@ -564,8 +579,17 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                                 nonMMIOStDone: False,
                                 epochIncremented: True, // system inst has incremented epoch
                                 spec_bits: spec_bits
+`ifdef KONATA 
+                                , u_id : x.u_id 
+`endif
                                };
         rob.enqPort[0].enq(y);
+
+`ifdef KONATA 
+              $display("KONATAE\t%d\t0\tRnm", x.u_id);
+              $display("KONATAS\t%d\t0\tE", x.u_id);
+              $fflush;
+`endif
 
         // record if we issue an CSR inst
         if(dInst.iType == Csr) begin
@@ -734,8 +758,17 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                                 nonMMIOStDone: False,
                                 epochIncremented: False,
                                 spec_bits: spec_bits
+`ifdef KONATA 
+                                , u_id : x.u_id 
+`endif
                                };
         rob.enqPort[0].enq(y);
+
+`ifdef KONATA 
+              $display("KONATAE\t%d\t0\tRnm", x.u_id);
+              $display("KONATAS\t%d\t0\tE", x.u_id);
+              $fflush;
+`endif
 
 `ifdef CHECK_DEADLOCK
         renameCorrectPath.send;
@@ -1086,8 +1119,17 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                                                 nonMMIOStDone: False,
                                                 epochIncremented: False,
                                                 spec_bits: spec_bits
+`ifdef KONATA 
+                                                , u_id : x.u_id 
+`endif
                                                };
                         rob.enqPort[i].enq(y);
+
+`ifdef KONATA 
+              $display("KONATAE\t%0d\t0\tRnm", x.u_id);
+              $display("KONATAS\t%0d\t0\tE", x.u_id);
+              $fflush;
+`endif
 
                         // record activity
                         doCorrectPath = True;

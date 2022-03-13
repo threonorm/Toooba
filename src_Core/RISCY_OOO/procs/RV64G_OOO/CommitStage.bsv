@@ -673,7 +673,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         !isValid(rob.deqPort[0].deq_data.trap) &&&
         rob.deqPort[0].deq_data.ldKilled matches tagged Valid .killBy
     );
-        rob.deqPort[0].deq;
+        // rob.deqPort[0].deq;
         let x = rob.deqPort[0].deq_data;
         if(verbose) $display("[doCommitKilledLd] ", fshow(x));
 
